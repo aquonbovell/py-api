@@ -1,65 +1,58 @@
-from flask import Flask, jsonify, request
-from pymongo.mongo_client import MongoClient
-from pymongo.server_api import ServerApi
-
-uri = "mongodb+srv://aquon123:bovell123@api.k89yiaj.mongodb.net/?retryWrites=true&w=majority"
-
-# Create a new MongoDB client and connect to the server
-client = MongoClient(uri, server_api=ServerApi('1'))
-db = client['users']
-users = db['users']
-
-# Send a ping to confirm a successful connection
-try:
-  client.admin.command('ping')
-  print("Pinged your deployment. You successfully connected to MongoDB!")
-except Exception as e:
-  print(e)
+from flask import Flask, jsonify, request, render_template
+from pymongo import MongoClient
+import os
 
 # Create a Flask app
 app = Flask(__name__)
 
+# Create a MongoDB client using environment variables
+MONGO_URI = os.getenv("MONGO_URI")
+
+if MONGO_URI is None:
+    raise ValueError("MONGO_URI environment variable is not set. Please set it.")
+
+client = MongoClient(MONGO_URI)
+db = client['users']
+users = db['users']
+
+@app.route('/')
+def index():
+    # Render an HTML template
+    return render_template('index.html')
+
 @app.route('/users', methods=['GET'])
 def get_users():
-	try:
-		data = list(users.find({}))
-		users_list = [{"_id": str(user["_id"]), "username": user['username'], "age": user['age']} for user in data]
-		return jsonify(users_list), 200
-	except Exception as e:
-		return jsonify({"error": str(e)}), 500
+    try:
+        data = users.find({})
+        users_list = [{"username": user['username'], "age": user['age']} for user in data]
+        return render_template('users.html', users=users_list)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
-@app.route('/users', methods=['POST'])
+@app.route('/createuser', methods=['POST'])
 def create_user():
-	try:
-		data = request.get_json()
-		if "username" not in data or "age" not in data:
-			return jsonify({"error": "Both 'username' and 'age' are required fields."}), 400
+    try:
+        data = request.get_json()
+        users.insert_one(data)
+        return jsonify({"username": data['username'], "age": data['age']}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
-		user_id = users.insert_one(data).inserted_id
-		return jsonify({"_id": str(user_id), "username": data['username'], "age": data['age']}), 201
-	except Exception as e:
-		return jsonify({"error": str(e)}), 500
+@app.route('/updateuser/<name>', methods=['PUT'])
+def update_user(name):
+    try:
+        users.update_one({"username": name}, {"$set": request.get_json()})
+        return jsonify({}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
-@app.route('/users/<user_name>', methods=['PUT'])
-def update_user(user_name):
-	try:
-		data = request.get_json()
-		result = users.update_one({"username": user_name}, {"$set": data})
-		if result.matched_count == 0:
-			return jsonify({"error": "User not found."}), 404
-		return jsonify({}), 204
-	except Exception as e:
-		return jsonify({"error": str(e)}), 500
-
-@app.route('/users/<user_name>', methods=['DELETE'])
-def delete_user(user_name):
-	try:
-		result = users.delete_one({"username": user_name})
-		if result.deleted_count == 0:
-			return jsonify({"error": "User not found."}), 404
-		return jsonify({}), 204
-	except Exception as e:
-		return jsonify({"error": str(e)}), 500
+@app.route('/deleteuser/<name>', methods=['DELETE'])
+def delete_user(name):
+    try:
+        users.delete_one({"username": name})
+        return jsonify({}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-	app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0', port=80)
