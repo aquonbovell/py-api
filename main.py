@@ -15,17 +15,12 @@ client = MongoClient(MONGO_URI)
 db = client['users']
 users = db['users']
 
-@app.route('/')
-def index():
-    # Render an HTML template
-    return render_template('index.html')
-
 @app.route('/users', methods=['GET'])
 def get_users():
     try:
         data = users.find({})
         users_list = [{"username": user['username'], "age": user['age']} for user in data]
-        return render_template('users.html', users=users_list)
+        return jsonify(users_list), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
