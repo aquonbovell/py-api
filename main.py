@@ -1,5 +1,6 @@
-from flask import Flask, jsonify, request, render_template
-from pymongo import MongoClient
+from flask import Flask, jsonify, request
+from pymongo.mongo_client import MongoClient
+from pymongo.server_api import ServerApi
 import os
 
 # Create a Flask app
@@ -11,7 +12,8 @@ MONGO_URI = os.getenv("MONGO_URI")
 if MONGO_URI is None:
     raise ValueError("MONGO_URI environment variable is not set. Please set it.")
 
-client = MongoClient(MONGO_URI)
+client = MongoClient(MONGO_URI, server_api=ServerApi('1'))
+
 db = client['users']
 users = db['users']
 
